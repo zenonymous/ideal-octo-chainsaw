@@ -1,11 +1,9 @@
 #!/usr/bin/python3
 
-import pymysql.cursors
-import pprint
-import json
-import requests
 import datetime
-import re
+import json
+import pymysql.cursors
+import requests
 
 db = pymysql.connect(host='localhost',
                     user='user',
@@ -24,4 +22,4 @@ for item in x:
         sql = "INSERT IGNORE INTO `go` (`id`, `licensePlate`, `stateOfCharge`, `lat`, `lng`, `remainingKilometers`) VALUES (%s, %s, %s, %s, %s, %s)"
         cursor.execute(
         sql, (item['id'], item['licensePlate'], item['stateOfCharge'], item['position']['coordinates'][1], item['position']['coordinates'][0], item['remainingKilometers']))
-    db.commit()
+db.commit()
