@@ -19,9 +19,10 @@ for item in x:
         cursor.execute(sql, (item['licensePlate']))
         result = cursor.fetchone()
         if 'remainingKilometers' in item:
-          if ( result != item['remainingKilometers'] ):
-             with db.cursor() as cursor:
-               sql = "INSERT IGNORE INTO `go` (`id`, `licensePlate`, `stateOfCharge`, `lat`, `lng`, `remainingKilometers`) VALUES (%s, %s, %s, %s, %s, %s)"
-               cursor.execute(
-               sql, (item['id'], item['licensePlate'], item['stateOfCharge'], item['position']['coordinates'][1], item['position']['coordinates'][0], item['remainingKilometers']))
+          if result is not None:
+            if ( result[0] != item['remainingKilometers'] ):
+              with db.cursor() as cursor:
+                 sql = "INSERT IGNORE INTO `go` (`id`, `licensePlate`, `stateOfCharge`, `lat`, `lng`, `remainingKilometers`) VALUES (%s, %s, %s, %s, %s, %s)"
+                 cursor.execute(
+                 sql, (item['id'], item['licensePlate'], item['stateOfCharge'], item['position']['coordinates'][1], item['position']['coordinates'][0], item['remainingKilometers']))
 db.commit()
