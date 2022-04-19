@@ -10,7 +10,7 @@ db = pymysql.connect(host='localhost',
                     password='password',
                     db='db')
 
-x = requests.get('https://greenmo.core.gourban-mobility.com/front/vehicles?lat=52.364431&lng=5.222011&rad=5').json()
+x = requests.get('https://greenmo.core.gourban-mobility.com/front/vehicles?lat=52.364431&lng=5.222011&rad=500').json()
 
 for item in x:
     #gps is not accurate, compare last record with current data before inserting a new one
