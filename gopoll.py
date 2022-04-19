@@ -20,11 +20,6 @@ for item in x:
         result = cursor.fetchone()
         if 'remainingKilometers' in item:
           if ( result != item['remainingKilometers'] ):
-             #turns out remainingKilometers isnt always there
-             if 'remainingKilometers' in item:
-                 print(item['remainingKilometers'])
-             else:
-               item['remainingKilometers'] = 0;
              with db.cursor() as cursor:
                sql = "INSERT IGNORE INTO `go` (`id`, `licensePlate`, `stateOfCharge`, `lat`, `lng`, `remainingKilometers`) VALUES (%s, %s, %s, %s, %s, %s)"
                cursor.execute(
