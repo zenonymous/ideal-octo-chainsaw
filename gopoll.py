@@ -22,7 +22,7 @@ for item in x:
           if result is not None:
             change_lng = ((float(result[0])-item['position']['coordinates'][0])/item['position']['coordinates'][0])*100
             change_lat = ((float(result[1])-item['position']['coordinates'][1])/item['position']['coordinates'][1])*100
-            if change_lng > 1.0 or change_lat > 1.0 or change_lat < 1.0 or change_lng < 1.0 :
+            if change_lng > 1.0 or change_lat > 1.0 or change_lat < -1.0 or change_lng < -1.0 :
               if ( result[2] != item['remainingKilometers'] ):
                 with db.cursor() as cursor:
                    sql = "INSERT IGNORE INTO `go` (`id`, `licensePlate`, `stateOfCharge`, `lat`, `lng`, `remainingKilometers`) VALUES (%s, %s, %s, %s, %s, %s)"
