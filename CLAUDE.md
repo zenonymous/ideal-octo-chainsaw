@@ -2,77 +2,81 @@
 
 ## What this project is
 
-A single-script data collector (`gopoll.py`, about 30 lines, Python 3). It polls the
-public goUrban "front" API used by **GO Sharing** (green shared e-mopeds in the
-Netherlands) and logs vehicle movements into a MySQL/MariaDB table named `go`. The
-hard-coded centre point `52.364431, 5.222011` is Almere Centrum, NL.
+A small data collector. It polls the public goUrban "front" API used by **GO Sharing**
+(green shared e-mopeds in the Netherlands) around Almere Centrum
+(`52.364431, 5.222011`) and records vehicle movements in a MySQL/MariaDB table named `go`.
+It can also derive rides and render a CSV or HTML report from the stored data.
 
-It is a personal hobby project from April 2022. There are no tests, no packaging
-and no config files. The README calls the vehicles "scooters". In practice they are
-e-mopeds.
+It started in April 2022 as a 30-line hobby script. It was restructured into the
+`gotracker` package in September 2026 (v2, see CHANGELOG.md). The README calls the
+vehicles "scooters". In practice they are e-mopeds.
 
-## Repository layout
+## Layout
 
 ```
-gopoll.py          the whole program; run directly (has a shebang, is executable)
-requirements.txt   runtime deps (requests, PyMySQL)
-README.md          user-facing overview
-docs/DATA_MODEL.md API fields used + inferred `go` table schema
-docs/KNOWN_ISSUES.md  bugs and limitations found in the current code; read before changing logic
+gopoll.py                 backwards-compatible entry point (existing cron jobs call it); forwards to gotracker.cli
+gotracker/
+  cli.py                  argparse commands: poll (default), init-db, rides, report
+  config.py               Config dataclass; all settings from GOPOLL_* env vars / .env
+  api.py                  fetch + parse the vehicles endpoint -> Vehicle; skips malformed items
+  geo.py                  haversine_m()
+  movement.py             should_record(): the "did it move?" rule. Pure function, heavily tested
+  poll.py                 poll_once() orchestration (Store protocol, so tests use a fake); run() loop
+  db.py                   Repository: all SQL lives here
+  rides.py                Observation -> Ride detection, summarize() stats
+  report.py               CSV writer and standalone HTML report (Leaflet map from cdnjs, CSS charts)
+  schema.sql              CREATE TABLE IF NOT EXISTS for go + go_snapshot
+tests/test_core.py        unit tests (no network, no DB)
+tests/test_db_integration.py  real MySQL test; runs only when GOPOLL_TEST_DB_NAME is set; DROPS go/go_snapshot there
+deploy/systemd/           oneshot service + 5-minute timer
+Dockerfile, docker-compose.yml   container image; compose bundles MariaDB
+.github/workflows/ci.yml  ruff + pytest (with a MariaDB service) on 3.9 and 3.12
 ```
 
-## Control flow of gopoll.py
+## Key rules and invariants
 
-1. `pymysql.connect(host='localhost', user='user', password='password', db='db')`.
-   These are placeholder credentials. The real ones were never committed.
-2. `GET .../front/vehicles?lat=52.364431&lng=5.222011&rad=500` returns a JSON list
-   of vehicles. The unit of `rad` is unknown (it was 5 before, then raised to 500).
-3. For each vehicle:
-   - `SELECT lng, lat, remainingKilometers FROM go WHERE licensePlate=%s ORDER BY date DESC LIMIT 1`
-   - Skip the vehicle if the API item has no `remainingKilometers`.
-   - Skip it if there is no previous row. **This means new vehicles are never recorded.**
-   - Compute the *percentage* change of lng and lat relative to the new value.
-   - Insert (`INSERT IGNORE`) only if |Δlng%| > 1 or |Δlat%| > 1, **and**
-     `remainingKilometers` differs from the last row.
-4. One `db.commit()` at the end.
+- **Existing `go` table compatibility is a hard requirement.** The owner has data from
+  2022 in a table whose exact DDL is unknown. Only use the columns
+  `id, licensePlate, stateOfCharge, lat, lng, remainingKilometers, date`. Don't rely
+  on `row_id` (it exists only in tables created by `init-db`). Never `ALTER` in
+  `init-db`. `date` is filled by the column default, not by the script.
+- API coordinates are GeoJSON `[lng, lat]`. `api.parse_vehicle` swaps them into
+  `Vehicle.lat`/`.lng`. Everything after that uses named fields.
+- Movement rule (`movement.should_record`): record if first sighting, or if moved at
+  least `min_distance_m` **and** (`remainingKilometers` changed, or either value is
+  unknown, or `require_range_change` is off).
+- Per-vehicle insert errors are logged and skipped. The rest of the poll is still
+  committed. An API failure writes nothing and exits with 1. DB connection or query
+  failure exits with 2.
+- Python ≥ 3.9. Every module has `from __future__ import annotations`, so `X | None`
+  is fine in annotations but not in runtime expressions.
+- Dependencies: `requests`, `PyMySQL`, `python-dotenv`. Keep the runtime footprint small.
 
-## History of the filtering logic
+## Commands
 
-This explains why the code looks the way it does:
+```sh
+pip install -r requirements-dev.txt
+ruff check . && ruff format --check .     # line length 120, E501 ignored for long SQL/HTML strings
+pytest                                    # unit tests
+GOPOLL_TEST_DB_NAME=gotest GOPOLL_TEST_DB_USER=... GOPOLL_TEST_DB_PASSWORD=... pytest   # + integration
+./gopoll.py -v                            # one poll with debug output (needs .env + network)
+```
 
-| Commit | Change |
-|--------|--------|
-| 573606f | Insert every vehicle on every run (`remainingKilometers` defaulted to 0 when missing) |
-| db38641 | "GPS is not accurate": only insert when `remainingKilometers` changed |
-| 8f3c9bf | Compare `result[0]` (the tuple was being compared before) and require a previous row |
-| 5f97880 | Also require a lat/lng change, to skip parked vehicles whose battery is just draining |
-| c0cec44 | Threshold raised to 1% (with a sign bug) |
-| 9e64d9a | Sign bug fixed: `< -1.0` |
+Offline end-to-end testing: serve a JSON file with `python -m http.server` and set
+`GOPOLL_API_URL=http://127.0.0.1:8000/vehicles.json`.
 
-The author's intent was to **record rides, not GPS jitter or idle battery drain**.
+## Environment notes (Claude Code cloud sandbox)
 
-## Conventions and gotchas
+- The real API host `greenmo.core.gourban-mobility.com` and the cdnjs and OpenStreetMap
+  hosts were blocked by the sandbox network policy (proxy 403). The live API
+  response has not been re-verified since 2022.
+- MariaDB can be installed with apt and started with
+  `mysqld_safe --user=mysql &` (create `/run/mysqld` first).
+- The system Python's `cryptography` package was broken there, so use a venv.
 
-- Code style is loose: mixed 2- and 4-space indentation and nested `with db.cursor()`
-  that shadows the outer cursor. If you rewrite the script, move to 4 spaces and PEP 8.
-- API coordinates are GeoJSON order `[lng, lat]`. The DB stores `lat` and `lng`
-  as separate columns. Keep the order straight.
-- `cursor.execute(sql, (item['licensePlate']))` passes a bare string, not a
-  1-tuple. PyMySQL accepts this, but `(x,)` is the intended form.
-- `datetime` and `json` are imported but unused.
-- The upstream API is undocumented and unofficial. Its field names are known only
-  from this code. Treat it as fragile.
+## Open questions (ask the owner before changing related behaviour)
 
-## Running / testing
-
-There is no test suite. To exercise the script you need network access to
-`greenmo.core.gourban-mobility.com` and a reachable MySQL with the `go` table (DDL
-in `docs/DATA_MODEL.md`). Note: from the Claude Code cloud sandbox this host was
-blocked by the network policy (HTTP 403 at the proxy), so the API's current
-availability and response shape could not be re-verified.
-
-## Before changing behaviour
-
-Read `docs/KNOWN_ISSUES.md`. Several "obvious" fixes, such as the 1% threshold or
-bootstrap on an empty table, change which rows get stored. Confirm the intent with
-the owner first.
+- The real DDL of the production `go` table. In particular, whether `id` is unique:
+  if it is, inserts fail with IntegrityError, which is now logged loudly.
+- The unit of the API's `rad` parameter (the default 500 is kept from 2022).
+- The production polling interval. Docs assume 5 minutes.

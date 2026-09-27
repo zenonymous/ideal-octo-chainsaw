@@ -1,2 +1,3 @@
-requests
-PyMySQL
+requests>=2.25
+PyMySQL>=1.0
+python-dotenv>=0.19

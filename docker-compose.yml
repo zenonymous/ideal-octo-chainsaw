@@ -1,0 +1,37 @@
+# Self-contained setup: MariaDB + a poller that runs every 5 minutes.
+#   cp .env.example .env   # set GOPOLL_DB_PASSWORD at least
+#   docker compose up -d
+# Report:  docker compose run --rm poller report -o - > report.html
+services:
+  db:
+    image: mariadb:11
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ${GOPOLL_DB_NAME:-gotracker}
+      MARIADB_USER: ${GOPOLL_DB_USER:-gotracker}
+      MARIADB_PASSWORD: ${GOPOLL_DB_PASSWORD:?set GOPOLL_DB_PASSWORD in .env}
+      MARIADB_RANDOM_ROOT_PASSWORD: "1"
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      retries: 10
+
+  poller:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      GOPOLL_DB_HOST: db
+      GOPOLL_DB_PORT: "3306"
+      GOPOLL_DB_NAME: ${GOPOLL_DB_NAME:-gotracker}
+      GOPOLL_DB_USER: ${GOPOLL_DB_USER:-gotracker}
+    entrypoint: ["sh", "-c", "gotracker init-db && exec gotracker \"$$@\"", "--"]
+    command: ["poll", "--every", "300"]
+
+volumes:
+  db-data:

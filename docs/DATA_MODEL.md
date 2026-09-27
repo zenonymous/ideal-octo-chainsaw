@@ -5,45 +5,67 @@
 `GET https://greenmo.core.gourban-mobility.com/front/vehicles?lat=<lat>&lng=<lng>&rad=<radius>`
 
 This is an unofficial, undocumented endpoint of the goUrban platform that GO Sharing
-runs on. It returns a JSON **array** of vehicle objects. The fields `gopoll.py` relies on:
+runs on. It returns a JSON **array** of vehicle objects. Fields used (see `gotracker/api.py`):
 
-| Field | Type (observed / assumed) | Notes |
-|-------|---------------------------|-------|
-| `id` | string or int | Vehicle id from the API |
-| `licensePlate` | string | Used as the vehicle identity when looking up history |
-| `stateOfCharge` | number | Battery %, stored as is |
-| `remainingKilometers` | number | **Not always present.** Items without it are skipped |
-| `position.coordinates` | `[lng, lat]` | GeoJSON order: index 0 = longitude, 1 = latitude |
+| Field | Required | Notes |
+|-------|----------|-------|
+| `id` | yes | Vehicle id, stored as a string |
+| `licensePlate` | yes | Vehicle identity when looking up history |
+| `position.coordinates` | yes | GeoJSON order: `[lng, lat]` |
+| `stateOfCharge` | no | Battery %, stored as NULL when missing |
+| `remainingKilometers` | no | **Not always present.** When missing, only the distance rule applies |
 
-Unknowns: the unit of `rad` (it was 5, then 500), rate limits, and whether the
+Items missing a required field are logged and skipped.
+
+Unknowns: the unit of `rad` (it was 5 in 2022, then 500), rate limits, and whether the
 endpoint still exists in this form.
 
-## Database: table `go`
+## Database
 
-The schema was never committed. This is what the SQL in `gopoll.py` implies:
+`gotracker/schema.sql` is the source of truth for new installs. `init-db` runs it with
+`CREATE TABLE IF NOT EXISTS`, so it never touches existing tables.
 
-```sql
-CREATE TABLE `go` (
-  `id`                  VARCHAR(64)   NOT NULL,   -- vehicle id from the API (type unknown)
-  `licensePlate`        VARCHAR(16)   NOT NULL,
-  `stateOfCharge`       INT,
-  `lat`                 DECIMAL(9,6)  NOT NULL,
-  `lng`                 DECIMAL(9,6)  NOT NULL,
-  `remainingKilometers` DECIMAL(6,1),
-  `date`                TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,  -- not set by the script, so it must default
-  KEY `idx_plate_date` (`licensePlate`, `date`)
-);
-```
+### `go`: movements
 
-Open questions about the real schema:
+One row per first sighting of a plate, plus one per detected movement.
 
-- **Is there a PRIMARY/UNIQUE key on `id`?** The script uses `INSERT IGNORE`. If
-  `id` (the vehicle id) is unique, then only **one row per vehicle** can ever exist
-  and every later insert is silently dropped. Presumably that is not the case
-  (maybe there is an auto-increment PK, or a unique key on `(id, date)`), but it is
-  unverified.
-- Column types are guesses. `lat`/`lng` are read back with `float(...)`, which
-  suggests DECIMAL or string storage.
+| Column | Notes |
+|--------|-------|
+| `row_id` | Auto-increment PK. **Only in tables created by `init-db`.** Code must not depend on it |
+| `id` | Vehicle id from the API |
+| `licensePlate` | |
+| `stateOfCharge` | Battery % |
+| `lat`, `lng` | |
+| `remainingKilometers` | NULL if the API omitted it |
+| `date` | Filled by `DEFAULT CURRENT_TIMESTAMP` (database server time) |
 
-Each row means "at `date` this vehicle was observed at (`lat`, `lng`) with this
-charge, and it had moved and lost range since its previous row".
+Index `(licensePlate, date)`: used for the "latest row per plate" lookup.
+
+**Legacy tables:** the original 2022 table was created by hand and its DDL was never
+committed. The code only uses the columns above (without `row_id`), so it works with
+any table that has them. It was tested against one with VARCHAR `lat`/`lng` and no
+keys. If the legacy table has a UNIQUE key on `id`, each vehicle can only ever have
+one row. Inserts now fail visibly (logged IntegrityError) instead of being silently
+dropped by `INSERT IGNORE` as they were before.
+
+### `go_snapshot`: every observation (optional)
+
+Written only when `GOPOLL_STORE_SNAPSHOTS=true`. Each poll inserts every vehicle, with
+the same columns as `go` and `observed_at` in place of `date`. Expect roughly
+(number of vehicles × polls per day) rows per day, for example 300 × 288 ≈ 86k/day
+at a 5-minute interval.
+
+## Rides (derived, not stored)
+
+`gotracker/rides.py` walks observations per plate in time order. Two consecutive
+observations at least `min_distance_m` apart form a **ride**:
+
+- `start_time` = the last time it was seen at the old spot and `end_time` = the first
+  time it was seen at the new one. The ride happened somewhere inside that window.
+- `distance_m` is the straight-line distance, not the route.
+- `range_used_km` / `charge_used_pct` are before minus after. They are negative after
+  a battery swap.
+
+From `go` (movements) the window can be long, because a movement row is written only
+after the move. From `go_snapshot` it is at most about one poll interval longer than
+the real ride.

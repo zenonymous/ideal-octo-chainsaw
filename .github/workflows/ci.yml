@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.12"]
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_DATABASE: gotest
+          MARIADB_USER: gt
+          MARIADB_PASSWORD: gtpass
+          MARIADB_RANDOM_ROOT_PASSWORD: "1"
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest -v
+        env:
+          GOPOLL_TEST_DB_HOST: 127.0.0.1
+          GOPOLL_TEST_DB_NAME: gotest
+          GOPOLL_TEST_DB_USER: gt
+          GOPOLL_TEST_DB_PASSWORD: gtpass
