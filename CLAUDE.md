@@ -19,7 +19,8 @@ Providers come in two kinds:
   ride tracking mostly doesn't work. Snapshots and availability are the useful data.
 
 History: a 30-line script from April 2022, restructured in v2.0 (September 2026) and
-made multi-provider in v2.1. See CHANGELOG.md.
+made multi-provider in v2.1. Both are merged into `main`
+(zenonymous/ideal-octo-chainsaw#1 and #2). See CHANGELOG.md.
 
 ## Layout
 
@@ -55,8 +56,10 @@ deploy/systemd/, Dockerfile, docker-compose.yml, .github/workflows/ci.yml
   `go_sharing`), widens `id`/`licensePlate` to VARCHAR(64) (INT becomes VARCHAR,
   nullability kept, skipped if the column has a default), and adds an index. It never
   drops or rewrites data and always has a `--dry-run`. `poll` refuses to run, with exit
-  code 2, until the schema is up to date. Don't rely on `row_id`, which exists only in
-  tables created from `schema.sql`.
+  code 2, while `go` (or `go_snapshot`, when snapshots are on) is missing or has no
+  `provider` column (`Repository.schema_problems`). It does not check column widths:
+  an un-widened column shows up as a per-row DataError with a `migrate` hint. Don't
+  rely on `row_id`, which exists only in tables created from `schema.sql`.
 - `go.date` is filled by the column default. `go_snapshot.observed_at` is set
   explicitly from the DB's `CURRENT_TIMESTAMP` once per provider poll, so all rows of
   one poll share a timestamp. `availability()` groups on that.
@@ -81,6 +84,21 @@ deploy/systemd/, Dockerfile, docker-compose.yml, .github/workflows/ci.yml
   `systems.csv`), or tell users to use `name=URL`. No other code is needed.
 - **A non-GBFS API:** add a client returning `list[Vehicle]`, a new `kind`, and a
   branch in `poll.fetch_from_provider`. Add fixture-based tests like the GBFS ones.
+
+## Keeping the docs current
+
+Docs are part of every change. When you change behaviour, update in the same commit:
+
+| You changed | Update |
+|-------------|--------|
+| A setting (`config.py`) | `.env.example`, README "Configuration"/"What gets stored" |
+| A command or flag (`cli.py`) | README "Commands", the Commands block below |
+| The schema or migration (`schema.sql`, `db.py`) | docs/DATA_MODEL.md, CHANGELOG upgrade steps |
+| Presets or feed parsing (`providers.py`, `gbfs.py`, `api.py`) | README "Choosing services", docs/DATA_MODEL.md "Sources" |
+| Movement or ride logic (`movement.py`, `rides.py`) | README "What gets stored", docs/DATA_MODEL.md "Rides" |
+| Found or fixed a limitation | docs/KNOWN_ISSUES.md |
+| Anything user-visible | CHANGELOG.md, and the version in `gotracker/__init__.py` when releasing |
+| Layout, invariants, workflow | this file |
 
 ## Commands
 

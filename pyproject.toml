@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "gotracker"
 dynamic = ["version"]
-description = "Poll the GO Sharing vehicle API and record e-moped movements in MySQL"
+description = "Poll ride-share vehicle feeds (GO Sharing and GBFS services) and record vehicles in MySQL/MariaDB"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = ["requests>=2.25", "PyMySQL>=1.0", "python-dotenv>=0.19"]

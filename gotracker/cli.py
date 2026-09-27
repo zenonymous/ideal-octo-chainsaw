@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pymysql
 
+from . import __doc__ as package_doc
 from . import __version__, db
 from .config import Config, ConfigError
 from .poll import run
@@ -36,7 +37,7 @@ def _default_env_file() -> Path | None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="gotracker", description=__doc__)
+    p = argparse.ArgumentParser(prog="gotracker", description=package_doc)
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     p.add_argument("--env-file", help="dotenv file to load (default: ./.env, else .env next to gopoll.py)")
     p.add_argument("-v", "--verbose", action="store_true", help="debug logging (overrides GOPOLL_LOG_LEVEL)")

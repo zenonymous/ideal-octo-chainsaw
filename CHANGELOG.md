@@ -20,7 +20,8 @@
 1. `./gopoll.py migrate --dry-run` to review the SQL. It adds `provider` to `go`
    (existing rows become `go_sharing`), widens `id`/`licensePlate` to VARCHAR(64), adds
    an index, and creates `go_snapshot`.
-2. `./gopoll.py migrate`. Until this has run, `poll` exits with code 2 and a message.
+2. `./gopoll.py migrate`. Until this has run, `poll` exits with code 2 and a message
+   (it checks that the tables and the `provider` column exist).
 3. Add providers to `GOPOLL_PROVIDERS` in `.env`.
 
 ## 2.0.0 (September 2026)
@@ -47,7 +48,9 @@ arguments still does one poll, so existing cron jobs keep working. They do need 
 **Upgrading an existing install:**
 1. `pip install -r requirements.txt` (adds `python-dotenv`).
 2. `cp .env.example .env` and move your DB credentials from the old `gopoll.py` into it.
-3. Optional: `./gopoll.py init-db`. It adds `go_snapshot` and leaves `go` untouched.
+3. Optional: `./gopoll.py init-db`. In 2.0 it added `go_snapshot` and left `go` untouched.
+   From 2.1 on, `init-db` is an alias of `migrate`, which also upgrades `go`; follow the
+   2.1 steps above instead.
 
 ## 1.x (April 2022)
 

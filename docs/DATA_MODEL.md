@@ -92,7 +92,8 @@ The original `go` table was created by hand and its DDL was never committed.
 - `ADD KEY (provider, licensePlate, date)`.
 
 No data is dropped or rewritten. Running `migrate` again is a no-op. `poll` refuses
-to run until the schema is migrated and prints the command to use.
+to run while `go` (or `go_snapshot`, when snapshots are on) is missing or has no
+`provider` column, and prints the command to use.
 
 ## Rides (derived, not stored)
 
