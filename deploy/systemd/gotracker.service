@@ -1,0 +1,18 @@
+# Runs one poll. Triggered by gotracker.timer.
+# Install: see deploy/systemd/README.md
+[Unit]
+Description=Poll GO Sharing vehicles and record movements
+Wants=network-online.target
+After=network-online.target mariadb.service mysql.service
+
+[Service]
+Type=oneshot
+User=gotracker
+WorkingDirectory=/opt/ideal-octo-chainsaw
+# Settings come from /opt/ideal-octo-chainsaw/.env (found automatically).
+ExecStart=/opt/ideal-octo-chainsaw/.venv/bin/python /opt/ideal-octo-chainsaw/gopoll.py
+TimeoutStartSec=120
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
