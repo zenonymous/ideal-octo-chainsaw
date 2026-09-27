@@ -13,7 +13,8 @@ import pymysql
 from . import __version__, db
 from .config import Config, ConfigError
 from .poll import run
-from .report import render_html, write_csv
+from .providers import PRESETS
+from .report import render_html, summarize_availability, write_csv
 from .rides import detect_rides, summarize
 
 log = logging.getLogger("gotracker")
@@ -41,10 +42,18 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-v", "--verbose", action="store_true", help="debug logging (overrides GOPOLL_LOG_LEVEL)")
     sub = p.add_subparsers(dest="command")
 
-    poll = sub.add_parser("poll", help="fetch vehicles once and record movements (default)")
+    poll = sub.add_parser("poll", help="fetch vehicles once from every provider and record them (default)")
     poll.add_argument("--every", type=float, metavar="SECONDS", help="keep polling at this interval")
 
-    sub.add_parser("init-db", help="create missing tables (never alters existing ones)")
+    for name in ("migrate", "init-db"):
+        m = sub.add_parser(
+            name,
+            help="create missing tables and upgrade existing ones (adds `provider` to `go`)"
+            + (" [alias of migrate]" if name == "init-db" else ""),
+        )
+        m.add_argument("--dry-run", action="store_true", help="only print the SQL that would run")
+
+    sub.add_parser("providers", help="list built-in providers and the configured ones")
 
     for name, help_ in (("rides", "print detected rides as CSV"), ("report", "write an HTML map/stats report")):
         s = sub.add_parser(name, help=help_)
@@ -54,6 +63,7 @@ def build_parser() -> argparse.ArgumentParser:
             default="movements",
             help="movements = `go` table (default); snapshots = `go_snapshot`",
         )
+        s.add_argument("--provider", action="append", default=[], help="only this provider (repeatable)")
         s.add_argument("--since", type=_date, help="only rows at/after this time (ISO format)")
         s.add_argument("--until", type=_date, help="only rows before this time (ISO format)")
         s.add_argument(
@@ -89,6 +99,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if command == "poll":
         return run(config, every=getattr(args, "every", None))
+    if command == "providers":
+        return _list_providers(config)
 
     try:
         conn = db.connect(config)
@@ -97,13 +109,12 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     repo = db.Repository(conn)
     try:
-        if command == "init-db":
-            repo.init_schema()
-            log.info("schema is up to date")
-            return 0
-        observations = repo.load_observations(args.source, args.since, args.until)
+        if command in ("migrate", "init-db"):
+            return _migrate(repo, args.dry_run)
+        observations = repo.load_observations(args.source, args.since, args.until, args.provider)
+        availability = repo.availability(args.since, args.until, args.provider) if command == "report" else []
     except pymysql.MySQLError as e:
-        hint = " (run `init-db` to create missing tables)" if e.args and e.args[0] == 1146 else ""
+        hint = " (run `migrate` to create or upgrade tables)" if e.args and e.args[0] in (1054, 1146) else ""
         log.error("database error: %s%s", e, hint)
         return 2
     finally:
@@ -124,11 +135,49 @@ def main(argv: list[str] | None = None) -> int:
                 write_csv(rides, f)
         return 0
 
-    page = render_html(rides, summarize(rides), "GO Sharing rides", (config.lat, config.lng))
+    page = render_html(
+        rides,
+        summarize(rides),
+        "Ride-share vehicles",
+        (config.lat, config.lng),
+        availability=summarize_availability(availability),
+        provider_order=[p.name for p in config.providers],
+    )
     if args.output == "-":
         sys.stdout.write(page)
     else:
         with open(args.output, "w", encoding="utf-8") as f:
             f.write(page)
         log.info("wrote %s", args.output)
+    return 0
+
+
+def _migrate(repo: db.Repository, dry_run: bool) -> int:
+    plan = repo.plan_migration()
+    for note in plan.notes:
+        log.info("%s", note)
+    if not plan.statements:
+        log.info("schema is up to date")
+        return 0
+    for statement in plan.statements:
+        print(statement + ";\n")
+    if dry_run:
+        log.info("dry run: nothing changed")
+        return 0
+    repo.migrate(plan)
+    log.info("applied %d statement(s)", len(plan.statements))
+    return 0
+
+
+def _list_providers(config: Config) -> int:
+    configured = {p.name for p in config.providers}
+    print("Configured (GOPOLL_PROVIDERS):")
+    for p in config.providers:
+        snap = "snapshots" if config.stores_snapshots(p) else "movements only"
+        print(f"  {p.name:<20} {p.label or p.url}  [{snap}]")
+    print("\nBuilt-in presets:")
+    for name, p in PRESETS.items():
+        mark = "*" if name in configured else " "
+        print(f" {mark}{name:<20} {p.label}")
+    print("\nAny other GBFS feed: add name=https://.../gbfs.json to GOPOLL_PROVIDERS.")
     return 0

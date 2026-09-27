@@ -1,0 +1,13 @@
+{
+  "last_updated": 1790503200,
+  "ttl": 60,
+  "version": "2.3",
+  "data": {
+    "bikes": [
+      {"bike_id": "bike-1", "lat": 52.0907, "lon": 5.1214, "is_reserved": false, "is_disabled": false,
+       "vehicle_type_id": "scooter", "current_range_meters": 18000, "current_fuel_percent": 0.6},
+      {"bike_id": "bike-2", "lat": "52.0911", "lon": "5.1302", "is_reserved": false, "is_disabled": false,
+       "current_range_meters": 3000}
+    ]
+  }
+}

@@ -2,19 +2,25 @@
 
 ## Open
 
-1. **Unverified API.** The endpoint is unofficial and its current response was not
-   re-checked in 2026, because it was not reachable from the sandbox. If it changed,
-   `api.parse_vehicle` is the only place that needs updating.
-2. **Legacy table DDL unknown.** See [DATA_MODEL.md](DATA_MODEL.md). A UNIQUE key on
-   `id` would make every insert after the first fail. This is now logged, not hidden.
-3. **Same-second ties.** `date` has 1-second resolution. If two rows for one plate share
-   a timestamp, "latest row" picks either one. This is harmless at normal poll intervals.
-4. **Timezones.** `date`/`observed_at` use the DB server's time zone (`CURRENT_TIMESTAMP`).
-   The report buckets by those values as stored.
-5. **Straight-line distances** underestimate real ride length.
-6. **Report needs internet.** The HTML report loads Leaflet from cdnjs and map tiles from
-   OpenStreetMap. Offline it shows a notice where the map would be, and the stats
-   still render.
+1. **Unverified live feeds.** Neither the goUrban endpoint nor the GBFS feeds could be
+   reached from the development sandbox. The GBFS client follows the spec (v1–v3) and
+   is tested against spec-shaped fixtures. Feed URLs come from the MobilityData
+   catalogue and can change. If a preset breaks, override it with `name=URL`.
+2. **GBFS rides can't be followed.** Vehicle ids rotate after each trip (see
+   [DATA_MODEL.md](DATA_MODEL.md)). Rides and "most-ridden vehicles" in the report are
+   meaningful only for GO Sharing. Use availability for GBFS providers.
+3. **Snapshot volume.** Whole-city GBFS feeds can have thousands of vehicles. There is
+   no area filter or retention job yet. Prune `go_snapshot` by `observed_at` if needed.
+4. **Legacy table DDL unknown.** Check `migrate --dry-run` before applying it to
+   production. A UNIQUE key on `id` would make inserts fail, which is now logged.
+5. **Same-second ties.** `date` has 1-second resolution. If two rows for one vehicle
+   share a timestamp, "latest row" picks either one.
+6. **Timezones.** Timestamps use the DB server's time zone (`CURRENT_TIMESTAMP`).
+7. **Straight-line distances** underestimate real ride length.
+8. **Report needs internet** for Leaflet (cdnjs) and map tiles (OpenStreetMap). Offline
+   it shows a notice where the map would be.
+9. **Map colours:** only three providers get their own colour. The rest share
+   "Other", but the provider table and tooltips still name them.
 
 ## Fixed in v2 (September 2026)
 

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+
+from .providers import GO_SHARING, PRESETS, ProviderSpec, parse_providers
 
 DEFAULT_API_URL = "https://greenmo.core.gourban-mobility.com/front/vehicles"
 
@@ -34,6 +36,30 @@ def _int(env: dict, name: str, default: int) -> int:
         raise ConfigError(f"{name} must be an integer, got {raw!r}") from None
 
 
+_SNAPSHOT_MODES = {
+    "all": "all",
+    "gbfs": "gbfs",
+    "none": "none",
+    # boolean values from v2.0, where the setting was on/off for everything
+    **dict.fromkeys(("true", "yes", "1", "on"), "all"),
+    **dict.fromkeys(("false", "no", "0", "off"), "none"),
+}
+
+
+def _snapshots(env: dict, name: str, default: str) -> str:
+    raw = _get(env, name, default).strip().lower()
+    if raw not in _SNAPSHOT_MODES:
+        raise ConfigError(f"{name} must be one of all/gbfs/none, got {raw!r}")
+    return _SNAPSHOT_MODES[raw]
+
+
+def _providers(env: dict, name: str) -> tuple[ProviderSpec, ...]:
+    try:
+        return parse_providers(_get(env, name, GO_SHARING))
+    except ValueError as e:
+        raise ConfigError(f"{name}: {e}") from None
+
+
 def _bool(env: dict, name: str, default: bool) -> bool:
     raw = _get(env, name, "true" if default else "false").strip().lower()
     if raw in ("1", "true", "yes", "on"):
@@ -51,7 +77,9 @@ class Config:
     db_user: str = "user"
     db_password: str = "password"
     db_name: str = "db"
-    # Upstream API
+    # Services to poll (GOPOLL_PROVIDERS)
+    providers: tuple[ProviderSpec, ...] = field(default_factory=lambda: (PRESETS[GO_SHARING],))
+    # GO Sharing (goUrban) API
     api_url: str = DEFAULT_API_URL
     lat: float = 52.364431  # Almere Centrum
     lng: float = 5.222011
@@ -61,7 +89,7 @@ class Config:
     min_distance_m: float = 200.0
     require_range_change: bool = True
     # Extras
-    store_snapshots: bool = False
+    snapshots: str = "gbfs"  # which providers also store every observation: all / gbfs / none
     log_level: str = "INFO"
 
     @classmethod
@@ -80,6 +108,7 @@ class Config:
             db_user=_get(env, "GOPOLL_DB_USER", d.db_user),
             db_password=_get(env, "GOPOLL_DB_PASSWORD", d.db_password),
             db_name=_get(env, "GOPOLL_DB_NAME", d.db_name),
+            providers=_providers(env, "GOPOLL_PROVIDERS"),
             api_url=_get(env, "GOPOLL_API_URL", d.api_url),
             lat=_float(env, "GOPOLL_LAT", d.lat),
             lng=_float(env, "GOPOLL_LNG", d.lng),
@@ -87,6 +116,9 @@ class Config:
             http_timeout=_float(env, "GOPOLL_HTTP_TIMEOUT", d.http_timeout),
             min_distance_m=_float(env, "GOPOLL_MIN_DISTANCE_M", d.min_distance_m),
             require_range_change=_bool(env, "GOPOLL_REQUIRE_RANGE_CHANGE", d.require_range_change),
-            store_snapshots=_bool(env, "GOPOLL_STORE_SNAPSHOTS", d.store_snapshots),
+            snapshots=_snapshots(env, "GOPOLL_STORE_SNAPSHOTS", d.snapshots),
             log_level=_get(env, "GOPOLL_LOG_LEVEL", d.log_level).upper(),
         )
+
+    def stores_snapshots(self, provider: ProviderSpec) -> bool:
+        return self.snapshots == "all" or (self.snapshots == "gbfs" and provider.is_gbfs)
