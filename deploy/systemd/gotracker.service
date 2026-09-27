@@ -1,7 +1,7 @@
 # Runs one poll. Triggered by gotracker.timer.
 # Install: see deploy/systemd/README.md
 [Unit]
-Description=Poll GO Sharing vehicles and record movements
+Description=Poll ride-share vehicle feeds and record them
 Wants=network-online.target
 After=network-online.target mariadb.service mysql.service
 

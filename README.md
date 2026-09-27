@@ -1,6 +1,6 @@
 # ideal-octo-chainsaw
 
-Read ride-share vehicle feeds and store a record in a database when a scooter has moved.
+Read ride-share vehicle feeds and store in a database where vehicles are and when they move.
 
 `gotracker` polls shared e-moped, e-scooter and e-bike services in the Netherlands and
 stores what it sees in MySQL/MariaDB. You can then turn the data into rides, a CSV
@@ -25,7 +25,8 @@ Run it on a schedule. Any of these works:
 
 - **cron**: `*/5 * * * * /path/to/ideal-octo-chainsaw/.venv/bin/python /path/to/ideal-octo-chainsaw/gopoll.py`
 - **systemd timer**: see [deploy/systemd/README.md](deploy/systemd/README.md)
-- **Docker Compose** (includes MariaDB): `cp .env.example .env && docker compose up -d`
+- **Docker Compose** (includes MariaDB): `cp .env.example .env && docker compose up -d`.
+  Report: `docker compose run --rm -T poller report -o - > report.html`
 - **built-in loop**: `./gopoll.py poll --every 300`
 
 ## Choosing services

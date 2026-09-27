@@ -21,6 +21,10 @@
    it shows a notice where the map would be.
 9. **Map colours:** only three providers get their own colour. The rest share
    "Other", but the provider table and tooltips still name them.
+10. **Schema check is shallow.** Before polling, only the tables and the `provider`
+    column are checked. If `migrate` could not widen `id`/`licensePlate` (for example
+    because the column has a default), long GBFS ids fail per row with a logged
+    DataError that points to `migrate`.
 
 ## Fixed in v2 (September 2026)
 

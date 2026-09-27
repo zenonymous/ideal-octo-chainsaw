@@ -1,7 +1,8 @@
 # Self-contained setup: MariaDB + a poller that runs every 5 minutes.
 #   cp .env.example .env   # set GOPOLL_DB_PASSWORD at least
 #   docker compose up -d
-# Report:  docker compose run --rm poller report -o - > report.html
+# Report:  docker compose run --rm -T poller report -o - > report.html
+#          (-T keeps log lines, which go to stderr, out of the HTML)
 services:
   db:
     image: mariadb:11
