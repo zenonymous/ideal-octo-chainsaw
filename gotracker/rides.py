@@ -19,6 +19,7 @@ class Observation:
     lng: float
     remaining_km: float | None = None
     state_of_charge: float | None = None
+    provider: str = "go_sharing"
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,7 @@ class Ride:
     distance_m: float
     range_used_km: float | None
     charge_used_pct: float | None
+    provider: str = "go_sharing"
 
     @property
     def window_minutes(self) -> float:
@@ -48,14 +50,14 @@ class Ride:
 
 
 def detect_rides(observations: Iterable[Observation], min_distance_m: float = 200.0) -> list[Ride]:
-    """Find rides in observations sorted by (plate, time).
+    """Find rides in observations sorted by (provider, plate, time).
 
     Consecutive observations of one plate that are at least ``min_distance_m`` apart
     count as a ride. Observations closer together than that are treated as the vehicle
     standing still, and the latest of them becomes the ride's start point.
     """
     rides: list[Ride] = []
-    for plate, group in groupby(observations, key=lambda o: o.plate):
+    for (provider, plate), group in groupby(observations, key=lambda o: (o.provider, o.plate)):
         prev: Observation | None = None
         for obs in group:
             if prev is not None:
@@ -73,6 +75,7 @@ def detect_rides(observations: Iterable[Observation], min_distance_m: float = 20
                             distance_m=distance,
                             range_used_km=_diff(prev.remaining_km, obs.remaining_km),
                             charge_used_pct=_diff(prev.state_of_charge, obs.state_of_charge),
+                            provider=provider,
                         )
                     )
             prev = obs
@@ -93,7 +96,8 @@ class Stats:
     median_distance_m: float
     rides_per_day: dict[str, int]
     rides_per_hour: dict[int, int]
-    top_vehicles: list[tuple[str, int]]
+    top_vehicles: list[tuple[str, str, int]]  # (provider, plate, rides)
+    rides_per_provider: dict[str, int]
 
 
 def summarize(rides: list[Ride], top: int = 10) -> Stats:
@@ -108,7 +112,10 @@ def summarize(rides: list[Ride], top: int = 10) -> Stats:
         median_distance_m=_median(distances),
         rides_per_day=dict(sorted(per_day.items())),
         rides_per_hour={h: per_hour.get(h, 0) for h in range(24)},
-        top_vehicles=Counter(r.plate for r in rides).most_common(top),
+        top_vehicles=[
+            (p, plate, n) for (p, plate), n in Counter((r.provider, r.plate) for r in rides).most_common(top)
+        ],
+        rides_per_provider=dict(Counter(r.provider for r in rides).most_common()),
     )
 
 

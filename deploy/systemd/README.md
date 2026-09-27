@@ -6,7 +6,7 @@ sudo git clone https://github.com/zenonymous/ideal-octo-chainsaw /opt/ideal-octo
 cd /opt/ideal-octo-chainsaw
 sudo python3 -m venv .venv && sudo .venv/bin/pip install -r requirements.txt
 sudo cp .env.example .env && sudo chown gotracker .env && sudo chmod 600 .env   # then edit it
-sudo -u gotracker .venv/bin/python gopoll.py init-db
+sudo -u gotracker .venv/bin/python gopoll.py migrate
 
 sudo cp deploy/systemd/gotracker.{service,timer} /etc/systemd/system/
 sudo systemctl daemon-reload

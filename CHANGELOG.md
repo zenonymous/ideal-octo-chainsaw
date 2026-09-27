@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.1.0 (September 2026)
+
+**Multiple ride-share services.**
+- `GOPOLL_PROVIDERS` selects what to poll: `go_sharing` (the default, same as before),
+  built-in GBFS presets (`check_almere`, `felyx_<city>` ×14, `dott_<city>` ×4), and
+  custom GBFS feeds as `name=URL`. `./gopoll.py providers` lists them.
+- New GBFS client (spec v1–v3, auto-discovery).
+- Every row now has a `provider` column. Vehicle identity is `(provider, licensePlate)`.
+- `GOPOLL_STORE_SNAPSHOTS` is now `gbfs` (default) / `all` / `none`. `true`/`false`
+  still work and mean `all`/`none`.
+- Each provider is fetched and committed separately. Exit code 1 if any provider failed.
+- Report: rides coloured per provider with a legend, a providers table, an
+  availability section (vehicles seen per poll, hourly averages) and `--provider`
+  filters. CSV has a `provider` column.
+- New `migrate` command with `--dry-run`. `init-db` is now an alias.
+
+**Upgrading from 2.0 or from the 2022 script:**
+1. `./gopoll.py migrate --dry-run` to review the SQL. It adds `provider` to `go`
+   (existing rows become `go_sharing`), widens `id`/`licensePlate` to VARCHAR(64), adds
+   an index, and creates `go_snapshot`.
+2. `./gopoll.py migrate`. Until this has run, `poll` exits with code 2 and a message.
+3. Add providers to `GOPOLL_PROVIDERS` in `.env`.
+
 ## 2.0.0 (September 2026)
 
 Restructured the single script into the `gotracker` package. `./gopoll.py` with no

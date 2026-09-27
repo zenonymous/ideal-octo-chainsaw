@@ -1,34 +1,35 @@
--- Schema for gotracker. Safe to run repeatedly: it only creates missing tables and
--- never alters existing ones. (Run with: python -m gotracker init-db)
+-- Schema for fresh installs. `python -m gotracker migrate` creates missing tables from
+-- this file, and upgrades existing ones (see db.plan_migration).
 
--- One row each time a vehicle is seen to have moved (plus a first-sighting baseline row).
--- Column names match the table the original 2022 gopoll.py wrote to, so an existing
--- `go` table keeps working as is.
+-- One row per first sighting of a vehicle and per detected movement.
+-- Column names match the table the original 2022 gopoll.py wrote to.
 CREATE TABLE IF NOT EXISTS `go` (
   `row_id`              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `provider`            VARCHAR(32)     NOT NULL DEFAULT 'go_sharing',
   `id`                  VARCHAR(64)     NOT NULL,          -- vehicle id from the API
-  `licensePlate`        VARCHAR(32)     NOT NULL,
+  `licensePlate`        VARCHAR(64)     NOT NULL,          -- plate (GO Sharing) or GBFS vehicle id
   `stateOfCharge`       DECIMAL(5,2)    NULL,              -- battery %
   `lat`                 DECIMAL(9,6)    NOT NULL,
   `lng`                 DECIMAL(9,6)    NOT NULL,
   `remainingKilometers` DECIMAL(7,2)    NULL,
   `date`                TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`row_id`),
-  KEY `idx_go_plate_date` (`licensePlate`, `date`)
+  KEY `idx_go_provider_plate_date` (`provider`, `licensePlate`, `date`)
 );
 
--- Optional (GOPOLL_STORE_SNAPSHOTS=true): every vehicle on every poll. Gives exact
--- "last seen here / first seen there" times for ride detection, at the cost of volume.
+-- Every vehicle on every poll, for providers with snapshots enabled
+-- (GOPOLL_STORE_SNAPSHOTS=gbfs by default).
 CREATE TABLE IF NOT EXISTS `go_snapshot` (
   `row_id`              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `provider`            VARCHAR(32)     NOT NULL DEFAULT 'go_sharing',
   `observed_at`         TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `id`                  VARCHAR(64)     NOT NULL,
-  `licensePlate`        VARCHAR(32)     NOT NULL,
+  `licensePlate`        VARCHAR(64)     NOT NULL,
   `stateOfCharge`       DECIMAL(5,2)    NULL,
   `lat`                 DECIMAL(9,6)    NOT NULL,
   `lng`                 DECIMAL(9,6)    NOT NULL,
   `remainingKilometers` DECIMAL(7,2)    NULL,
   PRIMARY KEY (`row_id`),
-  KEY `idx_snapshot_plate_time` (`licensePlate`, `observed_at`),
-  KEY `idx_snapshot_time` (`observed_at`)
+  KEY `idx_snapshot_provider_plate_time` (`provider`, `licensePlate`, `observed_at`),
+  KEY `idx_snapshot_provider_time` (`provider`, `observed_at`)
 );

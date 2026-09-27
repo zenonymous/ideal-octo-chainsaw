@@ -1,0 +1,14 @@
+{
+  "last_updated": 1790503200,
+  "ttl": 60,
+  "version": "2.3",
+  "data": {
+    "nl": {"feeds": [
+      {"name": "free_bike_status", "url": "https://gbfs.test/v2/nl/free_bike_status.json"}
+    ]},
+    "en": {"feeds": [
+      {"name": "system_information", "url": "https://gbfs.test/v2/en/system_information.json"},
+      {"name": "free_bike_status", "url": "https://gbfs.test/v2/en/free_bike_status.json"}
+    ]}
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "last_updated": "2026-09-27T12:00:00+02:00",
+  "ttl": 60,
+  "version": "3.0",
+  "data": {
+    "vehicles": [
+      {"vehicle_id": "a7f3c2d0-1111-4e5b-9c1a-000000000001", "lat": 52.3712, "lon": 5.2181,
+       "is_reserved": false, "is_disabled": false, "vehicle_type_id": "moped",
+       "current_range_meters": 41500, "current_fuel_percent": 0.83,
+       "last_reported": "2026-09-27T11:59:30+02:00"},
+      {"vehicle_id": "a7f3c2d0-1111-4e5b-9c1a-000000000002", "lat": 52.3655, "lon": 5.2302,
+       "is_reserved": false, "is_disabled": false, "vehicle_type_id": "moped",
+       "current_range_meters": 12000},
+      {"vehicle_id": "a7f3c2d0-1111-4e5b-9c1a-000000000003", "station_id": "st-1",
+       "is_reserved": false, "is_disabled": false, "vehicle_type_id": "moped"},
+      {"lat": 52.1, "lon": 5.1}
+    ]
+  }
+}

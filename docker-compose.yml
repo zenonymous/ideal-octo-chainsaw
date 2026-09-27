@@ -30,7 +30,7 @@ services:
       GOPOLL_DB_PORT: "3306"
       GOPOLL_DB_NAME: ${GOPOLL_DB_NAME:-gotracker}
       GOPOLL_DB_USER: ${GOPOLL_DB_USER:-gotracker}
-    entrypoint: ["sh", "-c", "gotracker init-db && exec gotracker \"$$@\"", "--"]
+    entrypoint: ["sh", "-c", "gotracker migrate && exec gotracker \"$$@\"", "--"]
     command: ["poll", "--every", "300"]
 
 volumes:
